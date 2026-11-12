@@ -29,6 +29,7 @@
         <a href="#psiphon">{{t .Lang "creds.title"}}</a>
         <a href="#upstream">{{t .Lang "upstream.title"}}</a>
         <a href="#xui">{{t .Lang "xui.title"}}</a>
+        <a href="#pasarguard">{{t .Lang "pg.title"}}</a>
         <a href="#ssl">{{t .Lang "ssl.title"}}</a>
         <a href="#autorestart">{{t .Lang "autorestart.title"}}</a>
         <a href="#backup">{{t .Lang "backup.title"}}</a>
@@ -148,6 +149,52 @@
             </footer>
           </form>
         </section>
+
+        <!-- ───────── PasarGuard ───────── -->
+        <section class="set-card" id="pasarguard">
+          <header class="set-head">
+            <h2>{{t .Lang "pg.title"}}</h2>
+            <p>{{t .Lang "pg.desc"}}</p>
+          </header>
+          <form method="post" action="{{url "/settings/pasarguard"}}" id="pg-form">
+            <div class="set-body">
+              {{if .PGSaved}}<div class="alert alert-success">{{t .Lang "pg.saved"}}</div>{{end}}
+              {{if .PGError}}<div class="alert alert-error">{{.PGError}}</div>{{end}}
+              <label class="check"><input type="checkbox" name="pg_enabled" value="1" {{if .PG.Enabled}}checked{{end}}> {{t .Lang "pg.enable"}}</label>
+              <div class="field">
+                <label for="pg-url">{{t .Lang "pg.url"}}</label>
+                <input type="text" id="pg-url" name="pg_url" autocomplete="off" spellcheck="false" value="{{.PG.URL}}" placeholder="https://hub.example.com:8000">
+              </div>
+              <div class="field">
+                <label for="pg-key">{{t .Lang "pg.key"}}</label>
+                <input type="password" id="pg-key" name="pg_key" autocomplete="new-password" spellcheck="false" placeholder="{{if .PG.HasKey}}{{t .Lang "xui.token.saved"}}{{else}}{{t .Lang "pg.key.hint"}}{{end}}">
+              </div>
+              <div class="field">
+                <label for="pg-core">{{t .Lang "pg.core"}}</label>
+                <input type="text" inputmode="numeric" id="pg-core" name="pg_core" autocomplete="off" value="{{if .PG.CoreID}}{{.PG.CoreID}}{{end}}" placeholder="12">
+              </div>
+              <div class="field">
+                <label for="pg-inbounds">{{t .Lang "pg.inbounds"}}</label>
+                <input type="text" id="pg-inbounds" name="pg_inbounds" autocomplete="off" spellcheck="false" value="{{.PG.InboundTags}}" placeholder="vless-reality-443">
+              </div>
+              <div class="field">
+                <label for="pg-host">{{t .Lang "pg.host"}}</label>
+                <input type="text" inputmode="numeric" id="pg-host" name="pg_host" autocomplete="off" value="{{if .PG.TemplateHostID}}{{.PG.TemplateHostID}}{{end}}" placeholder="{{t .Lang "pg.host.hint"}}">
+              </div>
+              <p class="hint">{{t .Lang "pg.note"}}</p>
+              {{if .PG.Routes}}<p class="hint">{{t .Lang "pg.routes"}}: {{range $i, $r := .PG.Routes}}{{if $i}}, {{end}}{{$r.Name}} = {{$r.Hex}}{{end}}</p>{{end}}
+              {{if .PG.LastSync}}<p class="hint">{{t .Lang "xui.last"}}: {{.PG.LastSync}}{{if .PG.LastError}} — {{.PG.LastError}}{{end}}</p>{{end}}
+              <div class="test-result" id="pg-result" role="status" aria-live="polite"></div>
+            </div>
+            <footer class="set-foot">
+              <span class="spacer"></span>
+              <button type="button" class="btn-ghost" id="pg-test-btn">{{t .Lang "xui.test"}}</button>
+              <button type="button" class="btn-ghost" id="pg-sync-btn">{{t .Lang "xui.sync"}}</button>
+              <button type="submit">{{t .Lang "xui.submit"}}</button>
+            </footer>
+          </form>
+        </section>
+
 
         <!-- ───────── SSL ───────── -->
         <section class="set-card" id="ssl">
@@ -351,6 +398,30 @@
     });
     sb.addEventListener("click", function () {
       run(sb, {{url "/settings/xui/sync"}}, null, function (res) { return res.changed ? {{t .Lang "xui.synced"}} : {{t .Lang "xui.nochange"}}; });
+    });
+  })();
+
+  // PasarGuard: Test reads the core config (and template host); Sync pushes now.
+  (function () {
+    var out = $("pg-result"), tb = $("pg-test-btn"), sb = $("pg-sync-btn");
+    function run(btn, path, body, okText) {
+      btn.disabled = true;
+      out.className = "test-result";
+      out.textContent = {{t .Lang "xui.working"}};
+      fetch(path, { method: "POST", body: body, credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.ok) { out.className = "test-result ok"; out.textContent = "✓ " + okText(res); }
+          else { out.className = "test-result err"; out.textContent = "✕ " + (res.error || "?"); }
+        })
+        .catch(function () { out.className = "test-result err"; out.textContent = "✕ " + {{t .Lang "pg.fail"}}; })
+        .finally(function () { btn.disabled = false; });
+    }
+    tb.addEventListener("click", function () {
+      run(tb, {{url "/settings/pasarguard/test"}}, new URLSearchParams(new FormData($("pg-form"))), function () { return {{t .Lang "pg.ok"}}; });
+    });
+    sb.addEventListener("click", function () {
+      run(sb, {{url "/settings/pasarguard/sync"}}, null, function (res) { return res.changed ? {{t .Lang "pg.synced"}} : {{t .Lang "xui.nochange"}}; });
     });
   })();
 

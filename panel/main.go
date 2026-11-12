@@ -123,7 +123,7 @@ func main() {
 	a.startAutoRestart()
 	ensureNoEstablishTimeout(configsDir)
 	startSSL()
-	xuiSyncAsync()
+	syncIntegrationsAsync()
 
 	// Everything is served under basePath (e.g. "/x7k9m2p4") when
 	// PANEL_PATH_PREFIX is set: a request to the bare "/" or "/login" then
@@ -150,6 +150,9 @@ func main() {
 	mux.HandleFunc(basePath+"/settings/xui", a.requireAuth(a.handleXUI))
 	mux.HandleFunc(basePath+"/settings/xui/test", a.requireAuth(a.handleXUITest))
 	mux.HandleFunc(basePath+"/settings/xui/sync", a.requireAuth(a.handleXUISync))
+	mux.HandleFunc(basePath+"/settings/pasarguard", a.requireAuth(a.handlePG))
+	mux.HandleFunc(basePath+"/settings/pasarguard/test", a.requireAuth(a.handlePGTest))
+	mux.HandleFunc(basePath+"/settings/pasarguard/sync", a.requireAuth(a.handlePGSync))
 	mux.HandleFunc(basePath+"/settings/autorestart", a.requireAuth(a.handleAutoRestart))
 	mux.HandleFunc(basePath+"/backup/export", a.requireAuth(a.handleBackupExport))
 	mux.HandleFunc(basePath+"/backup/import", a.requireAuth(a.handleBackupImport))
@@ -509,7 +512,7 @@ func (a *app) handleAdd(w http.ResponseWriter, r *http.Request) {
 	if err := startTunnel(name); err != nil {
 		log.Printf("start %s: %v", name, err)
 	}
-	xuiSyncAsync()
+	syncIntegrationsAsync()
 
 	http.Redirect(w, r, urlFor("/"), http.StatusSeeOther)
 }
@@ -577,6 +580,7 @@ func credsTemplateData(c psiphonCreds, saved bool, errMsg string) map[string]any
 		"UpstreamState": upstreamServiceState(),
 		"XrayAvailable": xrayErr == nil,
 		"XUI":           xuiTemplateData(),
+		"PG":            pgTemplateData(),
 		"SSL":           sslTemplateData(),
 	}
 	for k, v := range autoRestartTemplateData() {
@@ -677,7 +681,7 @@ func (a *app) handleTunnelAction(w http.ResponseWriter, r *http.Request) {
 			}
 			saveRegistry(registryPath, out)
 		}
-		xuiSyncAsync()
+		syncIntegrationsAsync()
 		invalidateRows()
 		if err := refreshSudoersRule(); err != nil {
 			log.Printf("refresh sudoers after removing %s: %v", name, err)
