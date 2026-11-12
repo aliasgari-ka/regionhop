@@ -27,6 +27,7 @@ Web panel + SSH CLI. SOCKS proxies stay local to the box — always.
 - [Using it](#using-it)
 - [Available regions](#available-regions)
 - [Exit region](#exit-region)
+- [Connect it to PasarGuard](#connect-it-to-pasarguard)
 - [Managing it over SSH](#managing-it-over-ssh)
 - [Updating](#updating)
 - [How it's laid out](#how-its-laid-out)
@@ -267,6 +268,43 @@ server in `/opt/psi-panel/data/xui.json` (mode 0600) and never shown again.
 If your 3x-ui uses HTTPS but you typed an `http://` address, regionhop follows
 3x-ui's redirect and switches to the `https://` address by itself. If the
 token is wrong or the web path is wrong, the error says which one it looks like.
+
+## Connect it to PasarGuard
+
+If a [PasarGuard](https://github.com/PasarGuard/panel) node runs on the same
+server, regionhop can sell every location from **one inbound on one port**.
+It uses Xray's `vlessRoute`: the third group of a VLESS UUID picks the routing
+rule, and PasarGuard hosts have a **VLESS route** field that writes that number
+into the links they hand out. So each host of the inbound is one location, and
+all of them sit in one subscription.
+
+1. In PasarGuard, create an API key (**Settings → API keys**) and note the id of
+   the core config the node on this server uses, and the tag of its inbound
+   (for example a VLESS + Reality inbound on 443).
+2. Optionally create a **template host** for that inbound (address, port, SNI,
+   fingerprint and so on, as your customers should get them). You can leave it
+   disabled. Put `{location}` in its remark where the location's flag and name
+   should go, e.g. `Multi {location}`.
+3. In regionhop open **Settings → PasarGuard**, tick *Send my locations to
+   PasarGuard*, fill in the address, API key, core config id, inbound tag(s) and,
+   if you made one, the template host id. Press **Test**, then **Save**.
+
+Each location then gets:
+
+- a SOCKS outbound `regionhop-<name>` → `127.0.0.1:<socks port>` in that core
+  config (the same outbound the 3x-ui integration writes);
+- a routing rule with `ruleTag` `regionhop-<name>`, at the top of the rules,
+  that sends UUIDs carrying the location's route number (1, 2, 3, …; shown on
+  the settings page) to that outbound, limited to the inbound tags you gave;
+- with a template host, a host of its own: a copy of the template with the
+  location's remark and VLESS route (`0001`, `0002`, …).
+
+A location keeps its route number for as long as it exists, so links already
+handed out keep working. Removing a location removes its outbound, rule and
+host. Only items with the `regionhop-` tag and hosts regionhop created itself
+are ever changed, and the core config is saved (which restarts the Xray of the
+nodes using it) only when something differs. Users whose UUID carries no route
+number (the template's own links, other hosts of the inbound) are not affected.
 
 ## HTTPS for the panel
 
